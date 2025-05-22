@@ -1,0 +1,81 @@
+var socket = io.connect();
+
+// Variables para los datos
+var valores = [0, 0];  // [temperatura, distancia]
+
+// Escucha los datos enviados desde el ESP32
+socket.on('retransmision_esp32', function(obj){
+    try {
+        // No se necesita JSON.parse aquí, ya es objeto
+
+        var distancia = obj.distancia;
+        var temperatura = obj.temperatura;
+
+        var cadena = `<div>
+                        <strong>🌡️ Temperatura: <font color="red">${temperatura} °C</font></strong><br>
+                        <strong>📏 Distancia: <font color="blue">${distancia} cm</font></strong>
+                      </div>`;
+        document.getElementById("div_dato").innerHTML = cadena;
+
+        valores[0] = temperatura;
+        valores[1] = distancia;
+
+        drawVisualization();
+
+    } catch (error) {
+        console.error("Error al procesar datos del ESP32:", error);
+    }
+});
+
+// Escucha los comandos desde el servidor
+socket.on('desde_servidor_comando', function(data){
+    var cadena = `<div> <strong>🧠 Comando: <font color="green">${data}</font></strong> </div>`;
+    document.getElementById("div_comando").innerHTML = cadena;
+});
+
+// Botones y envío de comandos
+function encender() {
+    socket.emit("desde_cliente", "ON");
+}
+
+function apagar() {
+    socket.emit("desde_cliente", "OFF");
+}
+
+function enviar_comando() {
+    var comando = document.getElementById('txt_comando').value;
+    socket.emit('desde_cliente', comando);
+}
+
+// Gráfica con Google Charts
+function drawVisualization() {
+    var data = google.visualization.arrayToDataTable([
+        ['Parámetro', 'Valor', { role: 'style' }],
+        ['Temperatura (°C)', valores[0], 'color: red'],
+        ['Distancia (cm)', valores[1], 'color: blue']
+    ]);
+
+    var options = {
+        title: "Datos en Tiempo Real desde ESP32",
+        width: 1200,
+        height: 300,
+        bar: { groupWidth: "95%" },
+        legend: { position: "none" },
+        animation: {
+            duration: 500
+        },
+        hAxis: {
+            minValue: 0,
+            maxValue: 200
+        }
+    };
+
+    var chart = new google.visualization.BarChart(document.getElementById('div_grafica'));
+    chart.draw(data, options);
+}
+
+// Cargar librería de Google Charts
+google.load('visualization', '1', {
+    packages: ['corechart'],
+    callback: drawVisualization
+});
