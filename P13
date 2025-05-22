@@ -1,0 +1,106 @@
+#include <WiFi.h>
+#include <SocketIoClient.h>
+#include "DHT.h"
+
+#define ONBOARD_LED 2
+#define TRIG_PIN 5
+#define ECHO_PIN 18
+#define DHTPIN 4
+#define DHTTYPE DHT11
+
+// Objetos de sensor
+DHT dht(DHTPIN, DHTTYPE);
+SocketIoClient socketIO;
+
+// WiFi
+const char* ssid     = "TecNM-ITT";
+const char* password = "";
+const char* server   = "172.16.66.184";
+const uint16_t port  = 3000;
+
+// Tiempos
+uint64_t now = 0;
+uint64_t timestamp = 0;
+
+// Funciones
+long medirDistancia();
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+
+  pinMode(ONBOARD_LED, OUTPUT);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  conectar_WiFiSTA();
+
+  socketIO.begin(server, port);
+  socketIO.on("desde_servidor_comando", procesar_mensaje_recibido);
+}
+
+void loop() {
+  now = millis();
+
+  if (now - timestamp > 3000) {
+    timestamp = now;
+
+    // Obtener valores
+    long distancia = medirDistancia();
+    float temperatura = dht.readTemperature();
+
+    // Validar lectura
+    if (isnan(temperatura)) {
+      Serial.println("Error al leer el DHT11");
+      return;
+    }
+
+    // Crear mensaje JSON
+    String mensaje = "{";
+    mensaje += "\"distancia\": " + String(distancia) + ",";
+    mensaje += "\"temperatura\": " + String(temperatura);
+    mensaje += "}";
+
+    // Enviar mensaje
+    socketIO.emit("desde_esp32", mensaje.c_str());
+    Serial.println("Enviado: " + mensaje);
+  }
+
+  socketIO.loop();
+}
+
+long medirDistancia() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(5);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  long duracion = pulseIn(ECHO_PIN, HIGH);
+  long distancia = duracion * 0.0343 / 2;
+  return distancia;
+}
+
+void conectar_WiFiSTA() {
+  delay(10);
+  Serial.println("\nConectando a WiFi...");
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print(".");
+  }
+
+  Serial.println("\nConexión exitosa");
+  Serial.print("Dirección IP asignada: ");
+  Serial.println(WiFi.localIP());
+}
+
+void procesar_mensaje_recibido(const char* payload, size_t length) {
+  Serial.printf("Mensaje recibido: %s\n", payload);
+  String comando = String(payload);
+
+  bool encender = (comando == "ON");
+  digitalWrite(ONBOARD_LED, encender ? HIGH : LOW);
+}
