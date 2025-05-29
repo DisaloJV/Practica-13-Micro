@@ -11,7 +11,7 @@
 </head>
 
 <body>
-    <h2>Biomédica - Control de piso</h2>
+    <h2>Biomédica - Microcontroladores</h2>
     <div id="div_dato"></div>
     <div id="div_comando"></div>
     <div id="div_grafica"></div>
